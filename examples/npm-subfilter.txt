@@ -1,0 +1,25 @@
+# NPM lure injection - for sites whose HTML you can't easily edit
+# (Nextcloud, Authentik, other packaged apps).
+#
+# In Nginx Proxy Manager: Proxy Hosts -> (the host) -> Advanced tab ->
+# "Custom Nginx Configuration" - append these lines. NPM then injects
+# the hidden lure link into every HTML page it serves for that host,
+# no app code changes needed. Remove the lines to revert instantly.
+#
+# Same warning as the static snippet: never on a site you want
+# ranked in search. App subdomains only.
+#
+# >>> EDIT: replace bots.example.com with your tarpit host. <<<
+
+proxy_set_header Accept-Encoding "";
+sub_filter '</body>' '<a href="https://bots.example.com/maze" rel="nofollow" style="display:none">archive</a></body>';
+sub_filter_once on;
+
+# Notes:
+# - Accept-Encoding "" stops the backend compressing the page, so
+#   sub_filter can actually see (and rewrite) the HTML.
+# - sub_filter only rewrites text/html by default: JS, CSS and API
+#   JSON pass through untouched, so breakage risk is low. Still,
+#   click through the app once after saving.
+# - Behind a login (e.g. Authentik forward-auth), the injection also
+#   lands in the login page HTML - which is the page scrapers read.

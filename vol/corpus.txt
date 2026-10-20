@@ -1,0 +1,33 @@
+STARTER CORPUS - REPLACE THIS FILE BEFORE REAL USE
+Nepenthes trains its Markov babbler on this file at every startup.
+This starter is only a few dozen lines so the container can boot and you
+can verify the maze works. For real use replace corpus.txt with a large
+plain-text file - around 60000 lines is the upstream example size - for
+example a public-domain book from Project Gutenberg with the license
+header stripped out. Keep it plain text, one sentence per line works
+well. The larger and more varied the corpus, the less repetitive the
+generated pages look to a crawler.
+The pitcher plant waits beside the trail and offers a deep cup to any
+traveler who wanders too close to the edge of the bog in summer.
+A web crawler follows every link it finds because finding links is the
+only job it was given and it has no way to judge what it has found.
+The garden keeps records of rainfall and soil and the slow progress of
+seedlings through the short northern spring and the long dry autumn.
+Engineers measure the river at the bridge each morning and write the
+height in a ledger that stretches back through a hundred flood years.
+The library at the edge of town lends maps and repair manuals and old
+newspapers bound in cloth to anyone who asks at the front desk.
+A careful mechanic listens to an engine the way a doctor listens to a
+chest and writes down every rattle before opening the housing at all.
+The market opens before dawn and the bakers arrive first followed by
+the farmers with crates of greens and jars of honey from the hills.
+Sailors read the clouds over the harbor and decide whether the crossing
+will be calm enough for the small boats to leave before the evening.
+The archive holds letters written by surveyors who crossed the desert
+with camels and brass instruments and returned with charts of wells.
+Every network is a graph of promises between machines that agree to
+answer when called and to wait politely when the line is busy.
+The observatory dome turns slowly through the night following a star
+that will not be visible again from this valley for another decade.
+Cooks in the mountain lodge keep a pot of soup on the stove from the
+first snow until the road opens again and the trucks return in May.

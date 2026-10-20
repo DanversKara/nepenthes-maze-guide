@@ -1,0 +1,48 @@
+# Nepenthes tarpit - standalone.
+# A reverse proxy (Nginx Proxy Manager in this guide) is the only
+# thing in front of it. Nepenthes itself is never exposed directly.
+#
+# >>> EDIT: replace 192.168.1.50 with YOUR docker host's LAN IP. <<<
+#
+# Why a single ./vol bind mount: the image's start command reads
+# /vol/nepenthes/config.yml and /vol is a declared VOLUME in the
+# upstream Dockerfile. Mounting config/data anywhere else (an early
+# version of this setup used /home/nepenthes) means the container
+# never reads your files and crash-loops on the missing corpus.
+
+services:
+  nepenthes:
+    build:
+      context: ./upstream-docker
+    image: nepenthes-tarpit:2.8
+    container_name: nepenthes
+    restart: unless-stopped
+
+    # LAN only. Your reverse proxy reaches it here.
+    # NEVER port-forward 8893 on your router.
+    ports:
+      - "192.168.1.50:8893:8893"
+
+    volumes:
+      - ./vol:/vol/nepenthes
+
+    # Nepenthes is single-threaded - 1 core is its ceiling anyway.
+    # The caps are seatbelts: even a furious crawler cannot take
+    # the host down through this container.
+    cpus: 1.0
+    mem_limit: 512m
+    memswap_limit: 512m
+    pids_limit: 128
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - nepenthes-net
+
+networks:
+  nepenthes-net:
+    driver: bridge

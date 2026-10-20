@@ -1,0 +1,46 @@
+# Nepenthes 2.8 - safe starter config
+#
+# Paths are NOT guesses: they come from the upstream docker bundle's
+# own config + Dockerfile:
+#   the process reads   /vol/nepenthes/config.yml   (note: .yml)
+#   corpus expected at  /vol/nepenthes/corpus.txt
+#   seed expected at    /vol/nepenthes/seed.txt
+#   wordlist in image   /usr/share/dict/usa         (apk `words`)
+# The compose file bind-mounts this whole ./vol directory over
+# /vol/nepenthes, so everything the app expects is in one place.
+#
+# Landmine learned the hard way: do NOT add header_wait_min /
+# header_wait_max as global keys. The 2.8 config loader rejects them
+# ("Unknown configuration name") and the container crash-loops.
+# Header pacing uses built-in defaults; page pacing is per-silo
+# (min_wait / max_wait below).
+
+http_host: '::'
+http_port: 8893
+
+templates:
+  - '/usr/nepenthes/templates'
+  - '/vol/nepenthes/templates'
+
+seed_file: '/vol/nepenthes/seed.txt'
+
+# Stats endpoints only remember this many seconds of history.
+# 3600 = 1 hour. This is why the watcher script polls every 10
+# minutes and keeps its own permanent seen-list (see README).
+stats_remember_time: 3600
+
+silos:
+  - name: default
+    default: true
+    wordlist: '/usr/share/dict/usa'
+    corpus: '/vol/nepenthes/corpus.txt'
+    prefixes:
+      - /maze
+    # Slow pages are the point: each page costs the crawler
+    # 10-65 seconds and costs you almost nothing.
+    # NEVER set zero_delay - it turns the tarpit into a
+    # bandwidth/CPU weapon pointed at your own server.
+    min_wait: 10
+    max_wait: 65
+    redirect_rate: 10
+    bogon_filter: true

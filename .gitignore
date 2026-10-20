@@ -1,0 +1,10 @@
+# Downloaded at install time (step 2) - not part of this repo
+upstream-docker/
+nepenthes-docker-*.tar.gz
+
+# Runtime state created by nepenthes-watch.sh
+known-agents.txt
+
+# Local backups you might make while editing
+vol/corpus-starter.txt.bak
+*.log
