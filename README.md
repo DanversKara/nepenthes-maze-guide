@@ -5,8 +5,9 @@ A practical, battle-tested setup guide for running
 feeds LLM scrapers and aggressive crawlers an endless, slow maze of
 Markov-generated nonsense pages — behind Nginx Proxy Manager, on a
 throwaway subdomain, with hard resource caps, a real corpus, a
-first-crawler phone alert, and lure links that funnel bots from your
-other sites into the maze.
+first-crawler phone alert, lure links that funnel bots from your
+other sites into the maze, and a live dashboard for watching it
+work.
 
 This guide is the distilled version of a real homelab deployment,
 including the mistakes. Nepenthes itself is upstream's project (see
@@ -94,6 +95,7 @@ nepenthes-tarpit/
 ├── docker-compose.yml
 ├── deploy.sh
 ├── nepenthes-watch.sh
+├── watch/                  <- the live dashboard (step 9)
 ├── upstream-docker/        <- bundle contents (Dockerfile, compose.yaml, config.yaml)
 └── vol/
     ├── config.yml          <- the config the process actually reads
@@ -251,6 +253,45 @@ risk lands on the *source* site. Login portals, dashboards, app
 subdomains: ideal. Public docs and marketing pages: never. One link
 per domain is plenty.
 
+## Step 9 — Watch it live: the dashboard
+
+Stats are fun to watch, but Nepenthes forgets everything after an
+hour and the stats are LAN-only by design. The `watch/` folder in
+this repo is a small companion dashboard that fixes both:
+
+- a collector script runs on the docker host every minute, polls
+  the stats endpoints, and **archives everything to SQLite** — so
+  all-time history survives the tarpit's one-hour memory;
+- it also tails the container logs and reconstructs **page trails**:
+  which IP crawled which maze pages, in order;
+- a static page (one HTML file, no build step) served by a tiny
+  nginx container shows live bots, the last hour, all-time history,
+  and the trails. It auto-refreshes every 30 seconds.
+
+Install it after the tarpit itself is up (steps 1–6):
+
+```sh
+# the watch/ folder from this repo, placed inside nepenthes-tarpit/
+cd nepenthes-tarpit/watch
+./deploy.sh
+```
+
+Then open `http://192.168.1.50:8894/` from any browser on your LAN.
+The collector and the page are **LAN-only, same as the stats they
+read** — if you ever want it public, put it behind your proxy's
+auth, never bare (see `watch/README.md`).
+
+Two data quirks worth knowing, both handled for you:
+
+- **Addresses arrive as forwarding chains** (`client, last-hop`) —
+  the first entry is the real visitor; the collector stores just
+  that.
+- **The container logs carry IP + path but no user-agent**, so
+  trails are per-IP; agent names come from `/stats/agents`.
+
+The dashboard and the step-7 ntfy alerter are independent — run
+either or both.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -262,6 +303,7 @@ per domain is plenty.
 | Public tests fail with 403 from a VPS/datacenter IP, but work from a browser | Your CDN/bot filter blocks datacenter IPs — working as designed | Test from a normal connection (phone browser) instead |
 | Container up, stats fine, nobody ever visits | Normal at first | Subdomain discovery takes hours–days (CT logs, scanners); lure links (step 8) speed it up |
 | `time: not found` in deploy output on minimal systems | `time` isn't a shell builtin everywhere | The included `deploy.sh` uses curl's own `-w` timing instead |
+| Dashboard returns 403 | Served files aren't readable by the nginx worker user | `chmod -R a+rX nepenthes-tarpit/watch/www` (the watch deploy.sh does this; it only bites on manual installs) |
 
 ## Security notes
 
@@ -285,6 +327,7 @@ per domain is plenty.
 | `vol/corpus.txt` | 33-line starter corpus (replace it — step 4) |
 | `deploy.sh` | Deploy + end-to-end LAN verification |
 | `nepenthes-watch.sh` | First-crawler ntfy alerter (step 7) |
+| `watch/` | Live dashboard: collector, page, installer (step 9) |
 | `examples/lure-snippet.html` | Hidden lure link for static sites |
 | `examples/npm-subfilter.txt` | NPM injection variant for packaged apps |
 

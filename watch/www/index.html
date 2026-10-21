@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nepenthes Watch — bots.example.com</title>
+<style>
+  :root{
+    --bg:#0d0f1a; --panel:#161a2e; --panel2:#1c2138; --line:#2a3050;
+    --text:#e8eaf2; --dim:#9aa1bd; --accent:#f5b942; --good:#5fd08a;
+    --bad:#e05d5d; --mono:ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  header{padding:20px 22px 6px;display:flex;flex-wrap:wrap;gap:8px 18px;
+         align-items:baseline}
+  h1{font-size:22px;margin:0}
+  h1 .accent{color:var(--accent)}
+  h2{font-size:16px;margin:26px 0 10px;color:var(--text)}
+  .sub{color:var(--dim);font-size:13px}
+  .stale{color:var(--bad);font-weight:600}
+  main{padding:0 22px 34px;max-width:1180px;margin:0 auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+         gap:12px;margin-top:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:12px 14px}
+  .card .n{font-family:var(--mono);font-size:24px;font-weight:700}
+  .card .l{color:var(--dim);font-size:12px;text-transform:uppercase;
+           letter-spacing:.06em;margin-top:2px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;background:var(--panel);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{padding:7px 10px;text-align:left;font-size:13.5px;vertical-align:top}
+  th{color:var(--dim);font-weight:600;border-bottom:1px solid var(--line);
+     background:var(--panel2);white-space:nowrap}
+  tr+tr td{border-top:1px solid var(--line)}
+  td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+  td.key{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+  .empty{background:var(--panel);border:1px dashed var(--line);border-radius:10px;
+         padding:16px;color:var(--dim)}
+  .chart{display:flex;align-items:flex-end;gap:2px;height:90px;
+         background:var(--panel);border:1px solid var(--line);
+         border-radius:10px;padding:10px}
+  .chart .bar{flex:1;background:var(--accent);min-height:2px;border-radius:2px 2px 0 0;
+              opacity:.85}
+  .trail{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         padding:12px 14px;margin-bottom:12px}
+  .trail .who{font-family:var(--mono);font-size:13px;word-break:break-all}
+  .trail .meta{color:var(--dim);font-size:12.5px;margin:2px 0 8px}
+  .trail ol{margin:0;padding-left:22px;font-family:var(--mono);font-size:12.5px}
+  .trail li{word-break:break-all;padding:1px 0}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+          padding:10px 14px;margin-top:26px}
+  pre{font-family:var(--mono);font-size:12px;overflow:auto;color:var(--dim)}
+  footer{color:var(--dim);font-size:12.5px;padding:0 22px 22px;
+         max-width:1180px;margin:0 auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>🕸️ Nepenthes <span class="accent">Watch</span></h1>
+  <span class="sub" id="gen">loading…</span>
+  <span class="sub" id="stale"></span>
+</header>
+<main>
+  <div class="cards" id="cards"></div>
+
+  <h2 id="chartTitle">Requests per minute</h2>
+  <div class="chart" id="chart"></div>
+  <div class="empty" id="chartEmpty" style="display:none">
+    Not enough data yet — the chart appears once the collector has run a few times.
+  </div>
+
+  <h2>In the maze — last hour</h2>
+  <div class="grid">
+    <div id="activeAgents"></div>
+    <div id="activeAddresses"></div>
+  </div>
+
+  <h2>What they saw — page trails</h2>
+  <div id="trails"></div>
+
+  <h2>All-time history</h2>
+  <div class="grid">
+    <div id="histAgents"></div>
+    <div id="histAddresses"></div>
+  </div>
+
+  <details>
+    <summary>Raw tarpit stats</summary>
+    <pre id="raw"></pre>
+  </details>
+</main>
+<footer>
+  Nepenthes remembers only the last hour — this page is fed by a collector
+  that archives every poll, so history here goes back to first install.
+  Trails come from the container logs and may lag a minute behind.
+</footer>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function rel(ts){
+  if(!ts) return "—";
+  const s = Math.max(0, Math.floor(Date.now()/1000) - ts);
+  if(s < 60) return s + "s ago";
+  if(s < 3600) return Math.floor(s/60) + "m ago";
+  if(s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+function full(ts){
+  return ts ? new Date(ts*1000).toLocaleString() : "—";
+}
+function uptime(s){
+  if(s == null) return "—";
+  s = Math.floor(s);
+  const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+  return (d ? d + "d " : "") + h + "h " + m + "m";
+}
+function shortAgent(a){
+  if(!a) return "(unknown agent)";
+  return a.length > 90 ? a.slice(0, 90) + "…" : a;
+}
+
+function sightingTable(rows, keyLabel){
+  if(!rows || !rows.length)
+    return '<div class="empty">Nothing yet.</div>';
+  let h = "<table><tr><th>" + keyLabel + '</th><th class="num">Reported hits</th>' +
+          '<th class="num">Last seen</th></tr>';
+  for(const r of rows){
+    const hits = r.last_count ?? r.max_count;
+    h += "<tr><td class='key' title='" + esc(r.key) + "'>" + esc(shortAgent(r.key)) +
+         "</td><td class='num'>" + (hits ?? "—") +
+         "</td><td class='num' title='" + esc(full(r.last_seen)) + "'>" +
+         rel(r.last_seen) + "</td></tr>";
+  }
+  return h + "</table>";
+}
+
+function historyTable(rows, keyLabel){
+  if(!rows || !rows.length)
+    return '<div class="empty">Nothing yet.</div>';
+  let h = "<table><tr><th>" + keyLabel + '</th><th class="num">Peak hits</th>' +
+          '<th class="num">First seen</th><th class="num">Last seen</th></tr>';
+  for(const r of rows){
+    h += "<tr><td class='key' title='" + esc(r.key) + "'>" + esc(shortAgent(r.key)) +
+         "</td><td class='num'>" + (r.max_count ?? "—") +
+         "</td><td class='num' title='" + esc(full(r.first_seen)) + "'>" +
+         rel(r.first_seen) + "</td><td class='num' title='" +
+         esc(full(r.last_seen)) + "'>" + rel(r.last_seen) + "</td></tr>";
+  }
+  return h + "</table>";
+}
+
+function render(d){
+  const now = Math.floor(Date.now()/1000);
+  $("gen").textContent = "bots.example.com tarpit · updated " + rel(d.generated_at) +
+    " (" + full(d.generated_at) + ") · auto-refreshes";
+  $("stale").textContent = (now - d.generated_at > 180)
+    ? "⚠ collector may be stalled — data is " + rel(d.generated_at) + " old" : "";
+  $("stale").className = (now - d.generated_at > 180) ? "stale" : "sub";
+
+  const live = d.live || {}, t = d.totals || {};
+  const cards = [
+    [live.requests_total ?? "—", "Requests served"],
+    [live.memory_mb != null ? live.memory_mb + " MB" : "—", "Tarpit memory"],
+    [uptime(live.uptime_s), "Tarpit uptime"],
+    [(d.active.agents || []).length, "Agents in last hour"],
+    [(d.active.addresses || []).length, "IPs in last hour"],
+    [t.agents_all_time ?? 0, "Agents all-time"],
+    [t.addresses_all_time ?? 0, "IPs all-time"],
+    [t.hits_recorded ?? 0, "Pages crawled (logged)"],
+  ];
+  $("cards").innerHTML = cards.map(
+    ([n, l]) => "<div class='card'><div class='n'>" + esc(n) +
+                "</div><div class='l'>" + esc(l) + "</div></div>").join("");
+
+  // Requests-per-poll bar chart from snapshot deltas.
+  const act = (d.activity || []).filter((p) => p.requests_total != null);
+  const deltas = [];
+  for(let i = 1; i < act.length; i++)
+    deltas.push({ts: act[i].ts, n: Math.max(0, act[i].requests_total - act[i-1].requests_total)});
+  const recent = deltas.slice(-60);
+  if(recent.length >= 2){
+    const max = Math.max(...recent.map((p) => p.n), 1);
+    $("chart").style.display = "flex";
+    $("chartEmpty").style.display = "none";
+    $("chart").innerHTML = recent.map((p) =>
+      "<div class='bar' style='height:" + Math.max(3, p.n / max * 100) + "%' title='" +
+      esc(full(p.ts)) + " — " + p.n + " requests'></div>").join("");
+  } else {
+    $("chart").style.display = "none";
+    $("chartEmpty").style.display = "block";
+  }
+
+  $("activeAgents").innerHTML = sightingTable(d.active.agents, "User agent");
+  $("activeAddresses").innerHTML = sightingTable(d.active.addresses, "IP address");
+  $("histAgents").innerHTML = historyTable(d.history.agents, "User agent");
+  $("histAddresses").innerHTML = historyTable(d.history.addresses, "IP address");
+
+  // Trails: group hits by ip+agent, newest groups first, paths in order.
+  const groups = new Map();
+  for(const hit of (d.hits || [])){
+    const k = (hit.ip || "?") + " | " + (hit.agent || "");
+    if(!groups.has(k)) groups.set(k, {ip: hit.ip, agent: hit.agent, items: []});
+    groups.get(k).items.push(hit);
+  }
+  if(!groups.size){
+    $("trails").innerHTML =
+      '<div class="empty">No crawlers caught yet — the maze is quiet. ' +
+      "When a bot follows the hidden link, its page-by-page trail lands here.</div>";
+  } else {
+    let h = "";
+    for(const g of groups.values()){
+      const items = g.items.slice().sort((a, b) => a.ts - b.ts);
+      const last = items[items.length - 1].ts;
+      h += "<div class='trail'><div class='who'>" + esc(g.ip || "unknown IP") +
+           (g.agent ? " — " + esc(shortAgent(g.agent)) : "") +
+           "</div><div class='meta'>" +
+           items.length + " page" + (items.length === 1 ? "" : "s") +
+           " · last active " + rel(last) + " (" + esc(full(last)) + ")</div><ol>";
+      for(const it of items) h += "<li>" + esc(it.path || "/") + "</li>";
+      h += "</ol></div>";
+    }
+    $("trails").innerHTML = h;
+  }
+
+  $("raw").textContent = JSON.stringify(live.stats || {}, null, 2);
+}
+
+async function load(){
+  try{
+    const r = await fetch("data.json?t=" + Date.now(), {cache: "no-store"});
+    if(!r.ok) throw new Error(r.status);
+    render(await r.json());
+  }catch(e){
+    $("gen").textContent = "Waiting for the collector's first run…";
+  }
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

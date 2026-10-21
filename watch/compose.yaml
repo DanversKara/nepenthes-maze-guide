@@ -1,0 +1,15 @@
+# Nepenthes Watch — serves the static dashboard on the LAN.
+# The collector (collect.py, driven by cron on the host) writes
+# www/data.json; this container only serves the files.
+services:
+  watch-web:
+    image: nginx:alpine
+    container_name: nepenthes-watch-web
+    restart: unless-stopped
+    # LAN only, same bind style as the tarpit itself (8893).
+    # NEVER port-forward 8894 on pfSense — if you want it remotely,
+    # put an NPM proxy host in front of it (see README).
+    ports:
+      - "192.168.1.50:8894:80"
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
